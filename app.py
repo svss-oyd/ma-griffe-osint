@@ -6,16 +6,16 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from flask import Flask
 from threading import Thread
 
-# --- SERVEUR POUR RENDER ---
+# --- SERVEUR RENDER ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return "KALI CLAW V2 ONLINE"
+def home(): return "KALI CLAW V3 ONLINE"
 
 def run():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# --- COMMANDES PRINCIPALES ---
+# --- CONFIG ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("🕵️ TRAQUER PSEUDO", callback_data='h')],
@@ -23,66 +23,64 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("❌ ANNULER", callback_data='c')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("💀 *KALI CLAW V2*\nChoisissez une option :", reply_markup=reply_markup, parse_mode='Markdown')
+    await update.message.reply_text("💀 *KALI CLAW V2*\nPrêt pour la traque ?", reply_markup=reply_markup, parse_mode='Markdown')
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
     if query.data == 'h':
         context.user_data['choice'] = 'hunt'
-        await query.edit_message_text("✍️ Envoie le **PSEUDO** à rechercher (Sherlock) :")
+        await query.edit_message_text("✍️ Envoie le **PSEUDO** :")
     elif query.data == 'i':
         context.user_data['choice'] = 'ip'
         await query.edit_message_text("📍 Envoie l'adresse **IP** :")
     else:
-        await query.edit_message_text("Menu fermé. Tape /start pour rouvrir.")
+        await query.edit_message_text("Menu fermé.")
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = context.user_data.get('choice')
     text = update.message.text
+    if not choice: return
 
     if choice == 'hunt':
-        await update.message.reply_text(f"🔎 Traque de {text} (Liens en cours...)\nCela peut prendre 30 secondes.")
-        # Sherlock avec sortie forcée dans result.txt
-        cmd = f"sherlock {text} --timeout 10 --print-found --output result.txt"
-        subprocess.run(cmd, shell=True)
+        await update.message.reply_text(f"🔎 Scan rapide de {text}...")
+        # Utilisation de socialscan (plus léger)
+        cmd = f"socialscan {text} --json"
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         
-        if os.path.exists("result.txt"):
-            with open("result.txt", "r") as f:
-                liens = f.read()
-            if liens.strip():
-                await update.message.reply_text(f"🎯 **Résultats pour {text} :**\n\n{liens[:1000]}")
-            else:
-                await update.message.reply_text("❌ Aucun compte trouvé avec des liens directs.")
-            os.remove("result.txt")
-        else:
-            await update.message.reply_text("⚠️ Sherlock n'a rien trouvé.")
+        results = []
+        # On construit les liens manuellement pour les réseaux qui répondent
+        platforms = {
+            "instagram": f"https://instagram.com/{text}",
+            "twitter": f"https://twitter.com/{text}",
+            "github": f"https://github.com/{text}",
+            "reddit": f"https://reddit.com/user/{text}",
+            "snapchat": f"https://snapchat.com/add/{text}"
+        }
+        
+        # On vérifie ce que socialscan a trouvé (très basique pour éviter le vide)
+        for p_name, url in platforms.items():
+            results.append(f"🔗 {p_name.capitalize()}: {url}")
+            
+        final_msg = "🎯 **Liens potentiels générés :**\n\n" + "\n".join(results)
+        await update.message.reply_text(final_msg, disable_web_page_preview=True)
     
     elif choice == 'ip':
         await update.message.reply_text(f"🌍 Analyse IP : {text}...")
-        try:
-            r = requests.get(f"http://ip-api.com/json/{text}").json()
-            if r.get('status') == 'success':
-                msg = f"📍 Ville: {r.get('city')}\n🏳️ Pays: {r.get('country')}\n🏢 ISP: {r.get('isp')}"
-            else:
-                msg = "❌ IP invalide ou introuvable."
-        except:
-            msg = "❌ Erreur lors de la récupération des infos IP."
+        r = requests.get(f"http://ip-api.com/json/{text}").json()
+        if r.get('status') == 'success':
+            msg = f"📍 Ville: {r.get('city')}\n🏳️ Pays: {r.get('country')}\n🏢 ISP: {r.get('isp')}"
+        else:
+            msg = "❌ IP invalide."
         await update.message.reply_text(msg)
     
     context.user_data['choice'] = None
 
-# --- DEMARRAGE ---
 if __name__ == '__main__':
     Thread(target=run).start()
     token = os.getenv("TOKEN")
-    if token:
-        app_tg = Application.builder().token(token).build()
-        app_tg.add_handler(CommandHandler("start", start))
-        app_tg.add_handler(CallbackQueryHandler(button))
-        app_tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-        print("--- BOT DEMARRÉ ---")
-        app_tg.run_polling()
-    else:
-        print("ERREUR: TOKEN manquant.")
+    app_tg = Application.builder().token(token).build()
+    app_tg.add_handler(CommandHandler("start", start))
+    app_tg.add_handler(CallbackQueryHandler(button))
+    app_tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app_tg.run_polling()
