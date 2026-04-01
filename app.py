@@ -42,17 +42,27 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = context.user_data.get('choice')
     text = update.message.text
 
-    if choice == 'hunt':
-        await update.message.reply_text(f"🔎 Scan de {text}...")
-        # On lance socialscan sans le mode JSON pour avoir un texte lisible
-        cmd = f"socialscan {text} --show-all"
-        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if choice == 'hunt':
+        await update.message.reply_text(f"🔎 Traque de {text} (Liens en cours...)")
         
-        # On récupère le texte, si c'est vide on prévient l'utilisateur
-        output = res.stdout.strip() if res.stdout else "Aucun résultat trouvé sur les réseaux majeurs."
+        # On limite Sherlock aux 20 sites les plus populaires pour éviter le crash
+        # On enregistre dans un fichier temporaire
+        cmd = f"sherlock {text} --timeout 10 --print-found --output result.txt"
+        subprocess.run(cmd, shell=True)
         
-        await update.message.reply_text(f"✅ Résultats pour {text} :\n\n{output[:1000]}")
-    
+        if os.path.exists("result.txt"):
+            with open("result.txt", "r") as f:
+                liens = f.read()
+            
+            # On nettoie un peu le texte pour Telegram
+            if liens.strip():
+                await update.message.reply_text(f"🎯 **Résultats pour {text} :**\n\n{liens[:1000]}", parse_mode='Markdown')
+            else:
+                await update.message.reply_text("❌ Aucun compte trouvé avec des liens directs.")
+            os.remove("result.txt")
+        else:
+            await update.message.reply_text("⚠️ Sherlock n'a pas pu générer de rapport. Réessaie.")
+
     elif choice == 'ip':
         await update.message.reply_text(f"🌍 Analyse IP : {text}...")
         r = requests.get(f"http://ip-api.com/json/{text}").json()
