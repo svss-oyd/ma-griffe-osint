@@ -44,9 +44,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if choice == 'hunt':
         await update.message.reply_text(f"🔎 Scan de {text}...")
-        cmd = f"socialscan {text} --json"
+        # On lance socialscan sans le mode JSON pour avoir un texte lisible
+        cmd = f"socialscan {text} --show-all"
         res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        await update.message.reply_text(f"✅ Résultats :\n`{res.stdout[:1000]}`", parse_mode='Markdown')
+        
+        # On récupère le texte, si c'est vide on prévient l'utilisateur
+        output = res.stdout.strip() if res.stdout else "Aucun résultat trouvé sur les réseaux majeurs."
+        
+        await update.message.reply_text(f"✅ Résultats pour {text} :\n\n{output[:1000]}")
     
     elif choice == 'ip':
         await update.message.reply_text(f"🌍 Analyse IP : {text}...")
