@@ -1,4 +1,5 @@
 python-telegram-bot
-maigret
+sherlock
+socialscan
 flask
 gunicorn
