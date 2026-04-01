@@ -1,4 +1,5 @@
 python-telegram-bot
+sherlock
 socialscan
 flask
 gunicorn
