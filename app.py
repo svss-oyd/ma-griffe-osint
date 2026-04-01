@@ -1,38 +1,69 @@
 import os
 import subprocess
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+import requests
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from flask import Flask
 from threading import Thread
 
+# --- SERVEUR FLASK ---
 app = Flask(__name__)
 @app.route('/')
-def home(): return "ALIVE"
+def home(): return "KALI CLAW V2 ONLINE"
 
 def run():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-async def hunt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("❌ Usage: /hunt pseudo")
-        return
+# --- COMMANDES ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("🕵️ TRAQUER PSEUDO", callback_data='h')],
+        [InlineKeyboardButton("🌐 INFOS IP", callback_data='i')],
+        [InlineKeyboardButton("❌ ANNULER", callback_data='c')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("💀 *KALI CLAW V2*\nChoisissez une option :", reply_markup=reply_markup, parse_mode='Markdown')
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
     
-    user = context.args[0]
-    await update.message.reply_text(f"⚡ Scan rapide de {user}...")
-    
-    # Commande socialscan (plus rapide que Sherlock)
-    cmd = f"socialscan {user} --json"
-    process = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    
-    if process.stdout:
-        await update.message.reply_text(f"✅ Résultats pour {user} :\n\n{process.stdout[:1000]}")
+    if query.data == 'h':
+        context.user_data['choice'] = 'hunt'
+        await query.edit_message_text("✍️ Envoie le **PSEUDO** à rechercher :")
+    elif query.data == 'i':
+        context.user_data['choice'] = 'ip'
+        await query.edit_message_text("📍 Envoie l'adresse **IP** :")
     else:
-        await update.message.reply_text("⚠️ Aucun résultat trouvé ou serveur saturé.")
+        await query.edit_message_text("Annulé.")
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    choice = context.user_data.get('choice')
+    text = update.message.text
+
+    if choice == 'hunt':
+        await update.message.reply_text(f"🔎 Scan de {text}...")
+        cmd = f"socialscan {text} --json"
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        await update.message.reply_text(f"✅ Résultats :\n`{res.stdout[:1000]}`", parse_mode='Markdown')
+    
+    elif choice == 'ip':
+        await update.message.reply_text(f"🌍 Analyse IP : {text}...")
+        r = requests.get(f"http://ip-api.com/json/{text}").json()
+        if r.get('status') == 'success':
+            msg = f"📍 Ville: {r.get('city')}\n🏳️ Pays: {r.get('country')}\n🏢 ISP: {r.get('isp')}"
+        else:
+            msg = "❌ IP invalide."
+        await update.message.reply_text(msg)
+    
+    context.user_data['choice'] = None
 
 if __name__ == '__main__':
     Thread(target=run).start()
     token = os.getenv("TOKEN")
-    application = Application.builder().token(token).build()
-    application.add_handler(CommandHandler("hunt", hunt))
-    application.run_polling()
+    app_tg = Application.builder().token(token).build()
+    app_tg.add_handler(CommandHandler("start", start))
+    app_tg.add_handler(CallbackQueryHandler(button))
+    app_tg.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app_tg.run_polling()
