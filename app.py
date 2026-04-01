@@ -1,32 +1,58 @@
 import os
 import subprocess
-from telegram.ext import Application, CommandHandler
+import asyncio
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from flask import Flask
 from threading import Thread
 
-# Config du serveur pour rester en ligne
-app = Flask('')
+# --- SERVEUR DE MAINTIEN (POUR RENDER) ---
+app = Flask(__name__)
 @app.route('/')
-def home(): return "Griffe Active"
-def run_web(): app.run(host='0.0.0.0', port=8080)
+def index(): return "KALI CLAW ONLINE"
+def run():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
 
-# Commande de recherche
-async def hunt(update, context):
-    user = " ".join(context.args)
-    if not user:
-        await update.message.reply_text("❌ Mets un pseudo : /hunt [pseudo]")
+# --- MENU STYLE KALI ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("🦅 MAIGRET (Full Scan)", callback_data='scan_maigret')],
+        [InlineKeyboardButton("🕵️ SHERLOCK (Classic)", callback_data='scan_sherlock')],
+        [InlineKeyboardButton("🌐 SOCIALSCAN (Fast)", callback_data='scan_social')],
+        [InlineKeyboardButton("❌ ANNULER", callback_data='cancel')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    welcome_msg = (
+        "```\n"
+        "┌──(root💀kali-claw)-[~/osint]\n"
+        "└─$ INITIALIZING PIVOT CONSOLE...\n"
+        "--------------------------------\n"
+        "SÉLECTIONNEZ VOTRE OUTIL DE FRAPPE :\n"
+        "```"
+    )
+    await update.message.reply_text(welcome_msg, reply_markup=reply_markup, parse_mode='MarkdownV2')
+
+# --- GESTION DES BOUTONS ---
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == 'cancel':
+        await query.edit_message_text("```\nOperation aborted.\n```", parse_mode='MarkdownV2')
         return
-    await update.message.reply_text(f"🦅 La Griffe traque : {user}...")
-    subprocess.run(f"maigret {user} --timeout 20 --output report.txt", shell=True)
-    if os.path.exists("report.txt"):
-        await update.message.reply_document(open("report.txt", "rb"))
-    else:
-        await update.message.reply_text("⚠️ Rien trouvé.")
 
-# Lancement
-if __name__ == '__main__':
-    Thread(target=run_web).start()
-    token = os.getenv("TOKEN")
-    application = Application.builder().token(token).build()
-    application.add_handler(CommandHandler("hunt", hunt))
-    application.run_polling()
+    context.user_data['tool'] = query.data
+    await query.edit_message_text(f"
+http://googleusercontent.com/immersive_entry_chip/0
+http://googleusercontent.com/immersive_entry_chip/1
+3.  **Sur Render :** Le déploiement va se relancer tout seul dès que tu auras sauvegardé sur GitHub.
+4.  **Sur Telegram :** Tape la commande `/start`.
+
+### 🕵️ Pourquoi c'est mieux ?
+* **Look Kali :** Le texte s'affiche en mode "bloc de code" avec le prompt `root@kali`.
+* **Pivot Facile :** Tu cliques sur le bouton, tu tapes le pseudo, et le bot s'occupe du reste.
+* **Nettoyage :** Le bot supprime le rapport après l'envoi pour ne pas laisser de traces sur le serveur.
+
+**Est-ce que tu veux que je rajoute d'autres outils dans le menu (genre recherche d'IP ou de mail) ?**
