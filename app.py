@@ -42,7 +42,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = context.user_data.get('choice')
     text = update.message.text
 
-        if choice == 'hunt':
+    if choice == 'hunt':
         await update.message.reply_text(f"🔎 Traque de {text} (Liens en cours...)")
         
         # On limite Sherlock aux 20 sites les plus populaires pour éviter le crash
