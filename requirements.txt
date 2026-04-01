@@ -2,3 +2,4 @@ python-telegram-bot
 socialscan
 flask
 gunicorn
+requests
